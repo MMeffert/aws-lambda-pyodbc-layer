@@ -19,7 +19,7 @@ jobs:
     strategy:
       matrix:
         msodbc_version: ["17", "18"]
-        unixodbc_version: ["2.3.12"]
+        unixodbc_version: ["2.3.14"]
 
     steps:
       - name: Checkout repository
@@ -74,7 +74,7 @@ jobs:
       matrix:
         python_version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
         msodbc_version: ["17", "18"]
-        unixodbc_version: ["2.3.12"]
+        unixodbc_version: ["2.3.14"]
 
     steps:
       - name: Checkout repository

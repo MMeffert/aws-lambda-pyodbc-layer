@@ -13,7 +13,7 @@ Currently, this project supports only x86_64 architecture. Future updates will i
 - **Version-Specific Artifacts**: Lambda layers are built for specific combinations of:
   - **Python versions**: ```3.9```, ```3.10```,```3.11```, ```3.12```, ```3.13``` (using [pyenv](https://github.com/pyenv/pyenv))
   - **Microsoft ODBC driver versions**: ```17```, ```18```(using [Microsoft ODBC driver versions](https://learn.microsoft.com/en-us/sql/connect/odbc/linux-mac/installing-the-microsoft-odbc-driver-for-sql-server))
-  - **UNIXODBC versions**: ```2.3.12``` (with support for [multiple ODBC versions](https://www.unixodbc.org/download.html))
+  - **UNIXODBC versions**: ```2.3.14``` (with support for [multiple ODBC versions](https://www.unixodbc.org/download.html))
 
 - **Automated CI/CD with GitHub Actions**: The build, test and release pipeline is fully automated using GitHub Actions. This setup ensures the latest Lambda layer artifacts are built, tested, and made available for download whenever a new version is pushed or a pull request is created.
 
@@ -43,7 +43,7 @@ The GitHub Actions workflow [build.yml](.github/workflows/build.yml) builds the 
   The workflow supports building layers for multiple versions using a matrix strategy, allowing for simultaneous builds of:
 
 - MSODBC Version: ```18```, ```17```
-- UNIXODBC Version: ```2.3.12```
+- UNIXODBC Version: ```2.3.14```
 
 ### Updating Python Versions for Build
 
@@ -63,17 +63,17 @@ To build the Lambda layers locally, you can follow these steps:
     docker build -f Dockerfile-al2\
       --build-arg PYTHON_VERSIONS="3.12,3.11,3.10,3.9" \
       --build-arg MSODBC_VERSION=18 \
-      --build-arg UNIXODBC_VERSION=2.3.12 \
+      --build-arg UNIXODBC_VERSION=2.3.14 \
       -t pyodbc-lambda-layer:multi-python-al2 .
     ```
 
     - Build Docker Image using amazonlinux 2023
 
     ```bash
-    docker build -f Dockerfile-al2\
-      --build-arg PYTHON_VERSIONS="3.12,3.11,3.10,3.9" \
+    docker build -f Dockerfile-al2023\
+      --build-arg PYTHON_VERSIONS="3.13" \
       --build-arg MSODBC_VERSION=18 \
-      --build-arg UNIXODBC_VERSION=2.3.12 \
+      --build-arg UNIXODBC_VERSION=2.3.14 \
       -t pyodbc-lambda-layer:multi-python-al2023 .
     ```
 
@@ -96,7 +96,7 @@ If you want to test the Lambda layers, simply push your code to the relevant bra
 
 ## Roadmap
 
-- **Current Support**: The layers support the x86_64 architecture for Python ```3.9```, ```3.10```, ```3.11```, ```3.12```, ```3.13``` with Microsoft ODBC Driver versions ```17``` and ```18```, and UNIXODBC ```2.3.12```.
+- **Current Support**: The layers support the x86_64 architecture for Python ```3.9```, ```3.10```, ```3.11```, ```3.12```, ```3.13``` with Microsoft ODBC Driver versions ```17``` and ```18```, and UNIXODBC ```2.3.14```.
 - **Future Updates**:
   - **ARM64 Support**: In future releases, support for the arm64 architecture will be added, allowing for broader compatibility across different AWS Lambda runtime environments.
 
