@@ -189,3 +189,69 @@ jobs:
               For detailed instructions on integration, refer to the [Usage](https://github.com/vickyboston20/aws-lambda-pyodbc-layer/blob/v1.1.0/README.md#usage) section in the README.
 
               Thank you for choosing our AWS Lambda layers for PyODBC and Microsoft SQL Server connectivity!
+
+  publish:
+    needs: release
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      id-token: write
+      contents: read
+
+    strategy:
+      matrix:
+        python_version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        msodbc_version: ["18"]
+        unixodbc_version: ["2.3.14"]
+        account:
+          - name: legacy
+            id: '919311966619'
+            region: us-east-2
+          - name: production
+            id: '344349181969'
+            region: us-east-2
+
+    steps:
+      - name: Download built artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: pyodbc-layer
+          pattern: pyodbc-layer-*
+          merge-multiple: true
+
+      - name: Configure AWS Credentials (SharedServices)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::386930771048:role/GitHubActionsDeployRole
+          aws-region: us-east-1
+
+      - name: Assume Cross-Account Role
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ matrix.account.id }}:role/GitHubActionsCrossAccountRole
+          aws-region: ${{ matrix.account.region }}
+          role-chaining: true
+
+      - name: Determine Python runtime name
+        id: runtime
+        run: |
+          # Map Python version to Lambda runtime name
+          case "${{ matrix.python_version }}" in
+            3.9)  echo "name=python3.9" >> $GITHUB_OUTPUT ;;
+            3.10) echo "name=python3.10" >> $GITHUB_OUTPUT ;;
+            3.11) echo "name=python3.11" >> $GITHUB_OUTPUT ;;
+            3.12) echo "name=python3.12" >> $GITHUB_OUTPUT ;;
+            3.13) echo "name=python3.13" >> $GITHUB_OUTPUT ;;
+            *)    echo "name=python${{ matrix.python_version }}" >> $GITHUB_OUTPUT ;;
+          esac
+
+      - name: Publish Layer to AWS
+        run: |
+          LAYER_ZIP="pyodbc-layer/pyodbc-layer-${{ matrix.python_version }}-mssql${{ matrix.msodbc_version }}-unixODBC${{ matrix.unixodbc_version }}.zip"
+
+          aws lambda publish-layer-version \
+            --layer-name "pyodbc-layer-python${{ matrix.python_version }}-mssql${{ matrix.msodbc_version }}" \
+            --description "PyODBC layer for Python ${{ matrix.python_version }} with MSSQL Driver ${{ matrix.msodbc_version }} (${{ github.ref_name }})" \
+            --compatible-runtimes ${{ steps.runtime.outputs.name }} \
+            --zip-file "fileb://${LAYER_ZIP}" \
+            --region ${{ matrix.account.region }}
