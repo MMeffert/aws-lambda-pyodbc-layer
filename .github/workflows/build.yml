@@ -206,10 +206,10 @@ jobs:
         account:
           - name: legacy
             id: '919311966619'
-            region: us-east-2
+            region: us-east-1
           - name: production
             id: '344349181969'
-            region: us-east-2
+            region: us-east-1
 
     steps:
       - name: Download built artifacts
