@@ -32,7 +32,7 @@ jobs:
         run: |
           docker build -f Dockerfile-al2\
             --platform linux/amd64 \
-            --build-arg PYTHON_VERSIONS="3.9,3.10,3.11,3.12" \
+            --build-arg PYTHON_VERSIONS="3.10,3.11,3.12" \
             --build-arg MSODBC_VERSION=${{ matrix.msodbc_version }} \
             --build-arg UNIXODBC_VERSION=${{ matrix.unixodbc_version }} \
             -t pyodbc-lambda-layer:multi-python-al2 .
@@ -72,7 +72,7 @@ jobs:
 
     strategy:
       matrix:
-        python_version: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+        python_version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
         msodbc_version: ["17", "18"]
         unixodbc_version: ["2.3.14"]
 
@@ -200,7 +200,7 @@ jobs:
 
     strategy:
       matrix:
-        python_version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        python_version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
         msodbc_version: ["18"]
         unixodbc_version: ["2.3.14"]
         account:
@@ -237,11 +237,11 @@ jobs:
         run: |
           # Map Python version to Lambda runtime name
           case "${{ matrix.python_version }}" in
-            3.9)  echo "name=python3.9" >> $GITHUB_OUTPUT ;;
             3.10) echo "name=python3.10" >> $GITHUB_OUTPUT ;;
             3.11) echo "name=python3.11" >> $GITHUB_OUTPUT ;;
             3.12) echo "name=python3.12" >> $GITHUB_OUTPUT ;;
             3.13) echo "name=python3.13" >> $GITHUB_OUTPUT ;;
+            3.14) echo "name=python3.14" >> $GITHUB_OUTPUT ;;
             *)    echo "name=python${{ matrix.python_version }}" >> $GITHUB_OUTPUT ;;
           esac
 
