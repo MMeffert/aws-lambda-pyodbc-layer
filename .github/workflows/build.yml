@@ -32,7 +32,7 @@ jobs:
         run: |
           docker build -f Dockerfile-al2\
             --platform linux/amd64 \
-            --build-arg PYTHON_VERSIONS="3.10,3.11,3.12" \
+            --build-arg PYTHON_VERSIONS="3.10,3.11" \
             --build-arg MSODBC_VERSION=${{ matrix.msodbc_version }} \
             --build-arg UNIXODBC_VERSION=${{ matrix.unixodbc_version }} \
             -t pyodbc-lambda-layer:multi-python-al2 .
@@ -41,7 +41,7 @@ jobs:
         run: |
           docker build -f Dockerfile-al2023\
             --platform linux/amd64 \
-            --build-arg PYTHON_VERSIONS="3.13,3.14" \
+            --build-arg PYTHON_VERSIONS="3.12,3.13,3.14" \
             --build-arg MSODBC_VERSION=${{ matrix.msodbc_version }} \
             --build-arg UNIXODBC_VERSION=${{ matrix.unixodbc_version }} \
             -t pyodbc-lambda-layer:multi-python-al2023 .
