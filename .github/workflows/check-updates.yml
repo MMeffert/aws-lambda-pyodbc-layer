@@ -5,6 +5,10 @@ on:
     - cron: '0 9 * * 1'  # Weekly on Monday at 9am UTC
   workflow_dispatch:
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   check-updates:
     runs-on: ubuntu-latest
@@ -14,16 +18,15 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.PAT_TOKEN }}
 
       - name: Get supported Lambda Python versions
         id: python
         run: |
-          # Get versions from AWS docs, filter to only supported (3.9+)
+          # Get versions from AWS docs, filter to only supported (3.10+)
           VERSIONS=$(curl -s "https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtimes.html" | \
             grep -oP 'python3\.\d+' | sort -V | uniq | sed 's/python//' | \
-            awk -F. '$2 >= 9' | tr '\n' ',' | sed 's/,$//')
-          [ -z "$VERSIONS" ] && VERSIONS="3.9,3.10,3.11,3.12,3.13,3.14"
+            awk -F. '$2 >= 10' | tr '\n' ',' | sed 's/,$//')
+          [ -z "$VERSIONS" ] && VERSIONS="3.10,3.11,3.12,3.13,3.14"
           echo "versions=$VERSIONS" >> $GITHUB_OUTPUT
 
       - name: Get latest MSODBC version
@@ -45,9 +48,11 @@ jobs:
       - name: Get current versions from build.yml
         id: current
         run: |
+          AL2=$(grep -A2 'Dockerfile-al2 ' .github/workflows/build.yml | grep -oP 'PYTHON_VERSIONS="\K[^"]+' | head -1)
           AL2023=$(grep -A2 'Dockerfile-al2023' .github/workflows/build.yml | grep -oP 'PYTHON_VERSIONS="\K[^"]+' | head -1)
           MSODBC=$(grep -oP 'msodbc_version: \["\K[^"]+' .github/workflows/build.yml | head -1)
           UNIXODBC=$(grep -oP 'unixodbc_version: \["\K[^"]+' .github/workflows/build.yml | head -1)
+          echo "al2=$AL2" >> $GITHUB_OUTPUT
           echo "al2023=$AL2023" >> $GITHUB_OUTPUT
           echo "msodbc=$MSODBC" >> $GITHUB_OUTPUT
           echo "unixodbc=$UNIXODBC" >> $GITHUB_OUTPUT
@@ -56,29 +61,31 @@ jobs:
         id: update
         run: |
           AVAILABLE="${{ steps.python.outputs.versions }}"
+          CURRENT_AL2="${{ steps.current.outputs.al2 }}"
           CURRENT_AL2023="${{ steps.current.outputs.al2023 }}"
           CURRENT_MSODBC="${{ steps.current.outputs.msodbc }}"
           CURRENT_UNIXODBC="${{ steps.current.outputs.unixodbc }}"
           NEW_MSODBC="${{ steps.msodbc.outputs.version }}"
           NEW_UNIXODBC="${{ steps.unixodbc.outputs.version }}"
-          
-          # Split Python versions: AL2 (<=3.12), AL2023 (>=3.13)
+
+          # Split Python versions: AL2 (<=3.11), AL2023 (>=3.12)
           AL2_NEW="" AL2023_NEW="" TEST_ARRAY=""
           IFS=',' read -ra VERS <<< "$AVAILABLE"
           for v in "${VERS[@]}"; do
             MINOR=$(echo $v | cut -d. -f2)
-            [ "$MINOR" -le 12 ] && AL2_NEW="${AL2_NEW:+$AL2_NEW,}$v" || AL2023_NEW="${AL2023_NEW:+$AL2023_NEW,}$v"
+            [ "$MINOR" -le 11 ] && AL2_NEW="${AL2_NEW:+$AL2_NEW,}$v" || AL2023_NEW="${AL2023_NEW:+$AL2023_NEW,}$v"
             TEST_ARRAY="${TEST_ARRAY:+$TEST_ARRAY, }\"$v\""
           done
-          
+
           echo "al2_new=$AL2_NEW" >> $GITHUB_OUTPUT
           echo "al2023_new=$AL2023_NEW" >> $GITHUB_OUTPUT
           echo "test_array=[$TEST_ARRAY]" >> $GITHUB_OUTPUT
           echo "msodbc_new=$NEW_MSODBC" >> $GITHUB_OUTPUT
           echo "unixodbc_new=$NEW_UNIXODBC" >> $GITHUB_OUTPUT
-          
+
           # Check if any update needed
           NEEDS_UPDATE=false
+          [ "$AL2_NEW" != "$CURRENT_AL2" ] && NEEDS_UPDATE=true
           [ "$AL2023_NEW" != "$CURRENT_AL2023" ] && NEEDS_UPDATE=true
           [ "$NEW_MSODBC" != "$CURRENT_MSODBC" ] && NEEDS_UPDATE=true
           [ "$NEW_UNIXODBC" != "$CURRENT_UNIXODBC" ] && NEEDS_UPDATE=true
@@ -92,38 +99,56 @@ jobs:
           TEST="${{ steps.update.outputs.test_array }}"
           MSODBC="${{ steps.update.outputs.msodbc_new }}"
           UNIXODBC="${{ steps.update.outputs.unixodbc_new }}"
-          
-          sed -i "s/--build-arg PYTHON_VERSIONS=\"3.9[^\"]*\"/--build-arg PYTHON_VERSIONS=\"$AL2\"/" .github/workflows/build.yml
-          sed -i "/Dockerfile-al2023/,/PYTHON_VERSIONS/s/--build-arg PYTHON_VERSIONS=\"[^\"]*\"/--build-arg PYTHON_VERSIONS=\"$AL2023\"/" .github/workflows/build.yml
+
+          # Update AL2 Python versions
+          sed -i "s/--build-arg PYTHON_VERSIONS=\"3\.[0-9,\.]*\" Dockerfile-al2 /--build-arg PYTHON_VERSIONS=\"$AL2\" Dockerfile-al2 /" .github/workflows/build.yml
+
+          # Update AL2023 Python versions
+          sed -i "s/--build-arg PYTHON_VERSIONS=\"3\.[0-9,\.]*\" Dockerfile-al2023/--build-arg PYTHON_VERSIONS=\"$AL2023\" Dockerfile-al2023/" .github/workflows/build.yml
+
+          # Update test matrix
           sed -i "s/python_version: \[.*\]/python_version: $TEST/" .github/workflows/build.yml
-          
+
+          # Update MSODBC if new version
           if ! grep -q "\"$MSODBC\"" .github/workflows/build.yml; then
             sed -i "s/msodbc_version: \[/msodbc_version: [\"$MSODBC\", /" .github/workflows/build.yml
           fi
+
+          # Update unixODBC version
           sed -i "s/unixodbc_version: \[\"[^\"]*\"\]/unixodbc_version: [\"$UNIXODBC\"]/" .github/workflows/build.yml
 
-      - name: Commit, push, and tag release
+      - name: Create Pull Request
         if: steps.update.outputs.needs_update == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          BRANCH="auto-update/runtime-versions-$(date +%Y%m%d)"
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          
+
+          git checkout -b "$BRANCH"
           git add .github/workflows/build.yml
-          git commit -m "chore: update runtime versions
+          git commit -m "chore(deps): update runtime versions
 
           Python (AL2): ${{ steps.update.outputs.al2_new }}
           Python (AL2023): ${{ steps.update.outputs.al2023_new }}
           MSODBC: ${{ steps.update.outputs.msodbc_new }}
           unixODBC: ${{ steps.update.outputs.unixodbc_new }}"
-          
-          git push origin main
-          
-          # Create new release tag (increment patch version)
-          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-          MAJOR=$(echo $LATEST_TAG | cut -d. -f1)
-          MINOR=$(echo $LATEST_TAG | cut -d. -f2)
-          PATCH=$(echo $LATEST_TAG | cut -d. -f3)
-          NEW_TAG="$MAJOR.$MINOR.$((PATCH + 1))"
-          
-          git tag -a "$NEW_TAG" -m "Auto-release: updated runtime versions"
-          git push origin "$NEW_TAG"
+
+          git push origin "$BRANCH"
+
+          gh pr create \
+            --title "chore(deps): update runtime versions" \
+            --body "## Summary
+
+          Automated update of runtime versions:
+
+          - **Python (AL2):** ${{ steps.update.outputs.al2_new }}
+          - **Python (AL2023):** ${{ steps.update.outputs.al2023_new }}
+          - **MSODBC:** ${{ steps.update.outputs.msodbc_new }}
+          - **unixODBC:** ${{ steps.update.outputs.unixodbc_new }}
+
+          This PR was automatically created by the Check for Runtime Updates workflow." \
+            --base main \
+            --head "$BRANCH"
