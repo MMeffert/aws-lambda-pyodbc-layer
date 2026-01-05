@@ -13,13 +13,42 @@ on:
       - feature/**
 
 jobs:
+  load-versions:
+    runs-on: ubuntu-latest
+    outputs:
+      python_al2: ${{ steps.versions.outputs.python_al2 }}
+      python_al2023: ${{ steps.versions.outputs.python_al2023 }}
+      python_all: ${{ steps.versions.outputs.python_all }}
+      msodbc: ${{ steps.versions.outputs.msodbc }}
+      unixodbc: ${{ steps.versions.outputs.unixodbc }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Load versions from config
+        id: versions
+        run: |
+          # Read versions from JSON config
+          PYTHON_AL2=$(jq -r '.python.al2 | join(",")' versions.json)
+          PYTHON_AL2023=$(jq -r '.python.al2023 | join(",")' versions.json)
+          PYTHON_ALL=$(jq -r '(.python.al2 + .python.al2023) | @json' versions.json)
+          MSODBC=$(jq -r '.msodbc | @json' versions.json)
+          UNIXODBC=$(jq -r '.unixodbc' versions.json)
+
+          echo "python_al2=$PYTHON_AL2" >> $GITHUB_OUTPUT
+          echo "python_al2023=$PYTHON_AL2023" >> $GITHUB_OUTPUT
+          echo "python_all=$PYTHON_ALL" >> $GITHUB_OUTPUT
+          echo "msodbc=$MSODBC" >> $GITHUB_OUTPUT
+          echo "unixodbc=$UNIXODBC" >> $GITHUB_OUTPUT
+
   build:
     runs-on: ubuntu-latest
+    needs: load-versions
 
     strategy:
       matrix:
-        msodbc_version: ["17", "18"]
-        unixodbc_version: ["2.3.14"]
+        msodbc_version: ${{ fromJson(needs.load-versions.outputs.msodbc) }}
+        unixodbc_version: ["${{ needs.load-versions.outputs.unixodbc }}"]
 
     steps:
       - name: Checkout repository
@@ -32,7 +61,7 @@ jobs:
         run: |
           docker build -f Dockerfile-al2\
             --platform linux/amd64 \
-            --build-arg PYTHON_VERSIONS="3.10,3.11" \
+            --build-arg PYTHON_VERSIONS="${{ needs.load-versions.outputs.python_al2 }}" \
             --build-arg MSODBC_VERSION=${{ matrix.msodbc_version }} \
             --build-arg UNIXODBC_VERSION=${{ matrix.unixodbc_version }} \
             -t pyodbc-lambda-layer:multi-python-al2 .
@@ -41,7 +70,7 @@ jobs:
         run: |
           docker build -f Dockerfile-al2023\
             --platform linux/amd64 \
-            --build-arg PYTHON_VERSIONS="3.12,3.13,3.14" \
+            --build-arg PYTHON_VERSIONS="${{ needs.load-versions.outputs.python_al2023 }}" \
             --build-arg MSODBC_VERSION=${{ matrix.msodbc_version }} \
             --build-arg UNIXODBC_VERSION=${{ matrix.unixodbc_version }} \
             -t pyodbc-lambda-layer:multi-python-al2023 .
@@ -68,13 +97,13 @@ jobs:
       MSSQL_SA_PASSWORD: yourStrong(@)Password
 
     runs-on: ubuntu-latest
-    needs: build
+    needs: [load-versions, build]
 
     strategy:
       matrix:
-        python_version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
-        msodbc_version: ["17", "18"]
-        unixodbc_version: ["2.3.14"]
+        python_version: ${{ fromJson(needs.load-versions.outputs.python_all) }}
+        msodbc_version: ${{ fromJson(needs.load-versions.outputs.msodbc) }}
+        unixodbc_version: ["${{ needs.load-versions.outputs.unixodbc }}"]
 
     steps:
       - name: Checkout repository
@@ -138,7 +167,7 @@ jobs:
           ./test/check_lambda.sh ${{ matrix.msodbc_version }}
 
   release:
-    needs: test
+    needs: [load-versions, test]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -191,7 +220,7 @@ jobs:
               Thank you for choosing our AWS Lambda layers for PyODBC and Microsoft SQL Server connectivity!
 
   publish:
-    needs: release
+    needs: [load-versions, release]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
@@ -200,9 +229,9 @@ jobs:
 
     strategy:
       matrix:
-        python_version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        python_version: ${{ fromJson(needs.load-versions.outputs.python_all) }}
         msodbc_version: ["18"]
-        unixodbc_version: ["2.3.14"]
+        unixodbc_version: ["${{ needs.load-versions.outputs.unixodbc }}"]
         account:
           - name: legacy
             id: '919311966619'
