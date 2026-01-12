@@ -273,13 +273,16 @@ jobs:
             3.14) echo "name=python3.14" >> $GITHUB_OUTPUT ;;
             *)    echo "name=python${{ matrix.python_version }}" >> $GITHUB_OUTPUT ;;
           esac
+          # Sanitize version for layer name (Lambda doesn't allow periods)
+          SANITIZED_VERSION=$(echo "${{ matrix.python_version }}" | tr '.' '-')
+          echo "sanitized=${SANITIZED_VERSION}" >> $GITHUB_OUTPUT
 
       - name: Publish Layer to AWS
         run: |
           LAYER_ZIP="pyodbc-layer/pyodbc-layer-${{ matrix.python_version }}-mssql${{ matrix.msodbc_version }}-unixODBC${{ matrix.unixodbc_version }}.zip"
 
           aws lambda publish-layer-version \
-            --layer-name "pyodbc-layer-python${{ matrix.python_version }}-mssql${{ matrix.msodbc_version }}" \
+            --layer-name "pyodbc-layer-python${{ steps.runtime.outputs.sanitized }}-mssql${{ matrix.msodbc_version }}" \
             --description "PyODBC layer for Python ${{ matrix.python_version }} with MSSQL Driver ${{ matrix.msodbc_version }} (${{ github.ref_name }})" \
             --compatible-runtimes ${{ steps.runtime.outputs.name }} \
             --zip-file "fileb://${LAYER_ZIP}" \
