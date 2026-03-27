@@ -62,7 +62,7 @@ The split is defined in `versions.json` under `python.al2` and `python.al2023`.
 2. **build** — Docker builds per MSODBC version; AL2 and AL2023 built sequentially in same job
 3. **test** — matrix of (python_version x msodbc x unixodbc); spins up MSSQL 2022 + Lambda RIE
 4. **release** — on `v*.*.*` tags: creates GitHub Release with all zip artifacts
-5. **publish** — on tags: publishes Lambda Layer versions to Legacy (919311966619) and Production (344349181969) via OIDC cross-account role chaining through SharedServices (386930771048). Only MSODBC 18 is published.
+5. **publish** — on tags: publishes Lambda Layer versions to Production (344349181969) via OIDC cross-account role chaining through SharedServices (386930771048). Only MSODBC 18 is published.
 
 ### Layer Naming
 
